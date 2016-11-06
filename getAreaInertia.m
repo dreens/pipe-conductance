@@ -1,4 +1,4 @@
-function I = getAreaInertia( Boundary )
+function I = getAreaInertia( Boundary, verbose )
 %% This function computes the "area inertia" of a simply connected but
 % otherwise arbitrary pipe cross section. I invented the term area inertia,
 % but you can find more information in W. Steckelmacher's 1966 review:
@@ -9,14 +9,36 @@ function I = getAreaInertia( Boundary )
 %
 % Boundary is an arraylist of Nx2 arrays, each of which is an ordered list
 % of points along a single connected component of the boundary, with the
-% area on the right (i.e. oriented clockwise). 
+% area on the right (i.e. oriented clockwise). If only a single component,
+% counterclockwise orientation is detected and corrected automatically.
+%
+% verbose produces a figure if true. This is best used with a total number
+% of boundary vertices less than 100, or the figure will take too long.
 
 % Convert boundary into a master list of x and y coordinates:
 ll = length(Boundary);
 assert(ll>0,'Boundary arraylist is empty.');
 
+% Perform a few preparatory tasks that involve looping through all the
+% boundaries.
 lengths = zeros(ll,1);
+xm = inf;
+ym = inf;
 for i=1:ll
+    % Remove any doubled points. This makes life easier when creating
+    % boundaries to pass to this function.
+    a = Boundary{i};
+    aa = [diff(a); a(end,:)-a(1,:)];
+    aa = abs(aa) > mean(abs(aa(:)))/100000;
+    aa = aa(:,1) | aa(:,2);
+    a = a(aa,:);
+    Boundary{i} = a;
+    
+    % Find the minimum x and y coordinates over all boundaries
+    xm = min(xm,min(a(:,1)));
+    ym = min(ym,min(a(:,2)));
+    
+    % Populate the list of boundary lengths
     lengths(i) = size(Boundary{i},1);
 end
 endps = cumsum(lengths);
@@ -38,6 +60,14 @@ ytris = xtris;
 xtri2s = cell(1,ll);
 ytri2s = xtri2s;
 
+% Let's test convexity so we can save time in that case:
+if ll==1
+    a = Boundary{i};
+else
+    convex = false;
+end
+
+
 % for each connected sub-boundary in Boundary:
 for i=1:ll
     
@@ -46,13 +76,39 @@ for i=1:ll
     istwo = size(a,2);
     assert(istwo==2,'Member #%d of Boundary has size Nx%d, not Nx2.',i,istwo)
     
+    % Let's sum the exterior angles along the boundary to make sure it
+    % doesn't overwrap, which would imply self intersection.
+    aw = [a ; a(1,:)];
+    sidediffs = diff(aw);
+    sideangles = atan2(sidediffs(:,2),sidediffs(:,1));
+    sideangles = [sideangles ; sideangles(1)];
+    angles = mod(1e-6-diff(sideangles),2*pi);
+    if ll==1
+        convex = all(angles < pi);
+    end
+    angles = angles.*(angles < pi) - (2*pi - angles).*(angles > pi);
+    winding = round(sum(angles)/(2*pi));
+    if abs(winding) > 1
+        error('areaInertiaErr:winding',['Sum of exterior angles'...
+            ' along boundary is %dpi, indicating a self-overlapping'...
+            ' and thus invalid boundary.'],2*winding)
+    elseif winding < 0 && ll==1
+        warning('areaInertiaWarn:winding',['Sum of exterior angles'...
+            ' along boundary is %dpi, indicating that the boundary'...
+            ' wraps counterclockwise. Reversing automatically, '...
+            'but use caution with multi-boundaried areas.'],2*winding)
+        a = flipud(a);
+        convex = all(-angles < pi);
+    end
+
+    
     % get the x and y points along the boundary, make sure there are
-    % enough.
-    x = a(:,1);
-    y = a(:,2);
+    % enough. Translate the entire boundary into the first quadrant.
+    x = a(:,1) - xm + 1;
+    y = a(:,2) - ym + 1;
     l = length(x);
     assert(l>2,['Your Boundary needs at least three points' ...
-        ' to enclose an area, and more will give more accurate results.']);
+        ' to enclose an area, and more will improve accuracy.']);
     
     % The 'rep' matrices will just be a column vector of boundary points
     % repeated across each row. Here we load the relevant slot with this
@@ -198,52 +254,60 @@ changd = chang - chang3;
 changd = mod(changd,2*pi);
 changd = changd.*(changd<pi) + (2*pi-changd).*(changd>pi);
 
-% Conveniently, we can reject one class of chords that are outside
-% the area of interest purely based on whether its angle is between the
-% two boundary edges that it shares a vertex with:
-chout1 = changt < pi & changt2 < pi; %  chord included if true.
+if ~convex
 
-% Lets also note which chords intersect an internal exclusion. We do this
-% by checking for intersections with the perimeter. This is the longest
-% aspect of the calculation by far, and so a waitbar is implemented. I
-% thought of implementing this with MATLAB's 'inpolygon' function, but it
-% proved a good bit slower than the following. I suspect it may be quicker
-% to choose points along each chord and see if any 'hit' a boolean matrix
-% encoding the invalid region as an area. This should be O(n^2) instead of
-% O(n^3), but I don't know how the overhead compares.
-h = waitbar(0, 'Rejecting Invalid Chords ...');
-chout2 = true(l,l);
-% for each perimeter segment:
-for i=1:l
-    
-    % The line defined by (xs1,ys1),(xs2,ys2) is a segment in the boundary.
-    xs1 = xrep(i,2);
-    ys1 = yrep(i,2);
-    xs2 = xtri(i,2);
-    ys2 = ytri(i,2);
-    
-    % The following checks the sign of the cross product of the vector from
-    % xs1,ys1 to both endpoints of the chord. If they are opposite, the
-    % endpoints are on opposite sides of the segment, so the chord crosses 
-    % this perimeter segment.
-    chord_x_segment = sign((xs2-xs1)*(yrep-ys1)-(xrep-xs1)*(ys2-ys1))==-sign((xs2-xs1)*(ytri-ys1)-(xtri-xs1)*(ys2-ys1));
-    
-    % The following checks whether the two endpoints of this perimeter
-    % segment also lie on opposite sides of the chord. The '~=' means we
-    % also include the case where one of the endpoints of this perimeter
-    % segment is on top of the chord, since when this happens the sign
-    % argument and output are zero. We didn't include this case above
-    % because we don't want to exclude chords that share an endpoint with
-    % perimeter segments (since all of them do that!).
-    segment_x_chord = sign((xtri-xrep).*(ys1-yrep)-(ytri-yrep).*(xs1-xrep))~=sign((xtri-xrep).*(ys2-yrep)-(ytri-yrep).*(xs2-xrep));
-    
-    % if each crosses the other, we have an intersection, so we reject the
-    % chord by flipping the bit corresponding to it in the chout2.
-    intx = chord_x_segment & segment_x_chord;
-    chout2 = chout2 & ~intx;
-    
-    % Update the waitbar
-    waitbar( i / l, h);
+    % Conveniently, we can reject one class of chords that are outside
+    % the area of interest purely based on whether its angle is between the
+    % two boundary edges that it shares a vertex with:
+    chout1 = changt <= pi & changt2 <= pi; %  chord included if true.
+
+    % Lets also note which chords intersect an internal exclusion. We do this
+    % by checking for intersections with the perimeter. This is the longest
+    % aspect of the calculation by far, and so a waitbar is implemented. I
+    % thought of implementing this with MATLAB's 'inpolygon' function, but it
+    % proved a good bit slower than the following. I suspect it may be quicker
+    % to choose points along each chord and see if any 'hit' a boolean matrix
+    % encoding the invalid region as an area. This should be O(n^2) instead of
+    % O(n^3), but I don't know how the overhead compares.
+    h = waitbar(0, 'Rejecting Invalid Chords ...');
+    chout2 = true(l,l);
+    % for each perimeter segment:
+    for i=1:l
+
+        % The line defined by (xs1,ys1),(xs2,ys2) is a segment in the boundary.
+        xs1 = xrep(i,2);
+        ys1 = yrep(i,2);
+        xs2 = xtri(i,2);
+        ys2 = ytri(i,2);
+
+        % The following checks the sign of the cross product of the vector from
+        % xs1,ys1 to both endpoints of the chord. If they are opposite, the
+        % endpoints are on opposite sides of the segment, so the chord crosses 
+        % this perimeter segment.
+        chord_x_segment = sign((xs2-xs1)*(yrep-ys1)-(xrep-xs1)*(ys2-ys1))==-sign((xs2-xs1)*(ytri-ys1)-(xtri-xs1)*(ys2-ys1));
+
+        % The following checks whether the two endpoints of this perimeter
+        % segment also lie on opposite sides of the chord. The '~=' means we
+        % also include the case where one of the endpoints of this perimeter
+        % segment is on top of the chord, since when this happens the sign
+        % argument and output are zero. We didn't include this case above
+        % because we don't want to exclude chords that share an endpoint with
+        % perimeter segments (since all of them do that!).
+        segment_x_chord = sign((xtri-xrep).*(ys1-yrep)-(ytri-yrep).*(xs1-xrep))~=sign((xtri-xrep).*(ys2-yrep)-(ytri-yrep).*(xs2-xrep));
+
+        % if each crosses the other, we have an intersection, so we reject the
+        % chord by flipping the bit corresponding to it in the chout2.
+        intx = chord_x_segment & segment_x_chord;
+        chout2 = chout2 & ~intx;
+
+        % Update the waitbar
+        waitbar( i / l, h);
+    end
+    close(h)
+
+else
+    chout1 = 1;
+    chout2 = 1;
 end
 
 % spacing holds the length of each perimeter segment. This is "ds" in the
@@ -258,11 +322,11 @@ integrand = .5*chlen.^2.*sin(changt).*changd.*spacing.*chout1.*chout2;
 
 % We reject the first two columns of chords, since they are of length zero
 % and on the boundary, respectively.
-I = sum(sum(integrand(:,3:end-1)));
+I = sum(sum(integrand(:,3:end)));
 
 
 % The following is a slow visual check that the right chords are included.
-if false
+if verbose
     figure;
     hold on;
     for i=1:l
