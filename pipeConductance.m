@@ -1,4 +1,3 @@
-function c = pipeConductance(L, pipetype, pipeargs, varargin)
 %PIPECONDUCTANCE Find the conductance of a pipe of arbitrary cross section.
 %
 %c = pipeConductance(L, pipetype, pipeargs) finds the conductance of a pipe
@@ -110,8 +109,10 @@ function c = pipeConductance(L, pipetype, pipeargs, varargin)
 %
 % EXAMPLE 2
 % ---------
-%   C = pipeConductance('square',1,'ViewImage',true,'Density',60);
+%   C = pipeConductance(1,'square',1,'ViewImage',true,'Density',60);
 %   % 
+function c = pipeConductance(L, pipetype, pipeargs, varargin)
+
 %% Interpret the inputs.
 % We first find any string inputs in varargin and extract them with their
 % value pairs.
@@ -540,7 +541,7 @@ function [boundary, convex] = checkBound( boundary )
 end %end checkbound subfunction
 
 %% Prepare matrices representing chords of boundary
-function chordData = prepChordMatrices( boundary, convex )
+function chordData = prepChordMatrices( boundary, convex, varargin )
     % Perform a few preparatory tasks that involve looping through all the
     % boundaries.
     ll = length(boundary);
@@ -552,6 +553,9 @@ function chordData = prepChordMatrices( boundary, convex )
     end
     endps = cumsum(lengths);
 
+    % Extra argument interpreted as verbosity flag
+    verbose = ~isempty(varargin) & varargin{1};
+    
     % Now I will populate eight matrices. The four matrices without 2 on the
     % end, together will represent all possible chords connecting two points in
     % the boundary. (A chord is specified by four points, hence the four
@@ -802,7 +806,22 @@ function chordData = prepChordMatrices( boundary, convex )
     chordData.y2 = ytri(:,2);
     chordData.track = tracker;
 
-end
+    
+    % The following is a slow visual check that the right chords are included.
+    if verbose
+        figure;
+        hold on;
+        for i=1:l
+            for j=1:l
+                if (numel(chout1)==1) || (chout1(i,j) && chout2(i,j))
+                    plot([xrep(i,j) xtri(i,j)],[yrep(i,j) ytri(i,j)])
+                    pause(.01)
+                end
+            end
+        end
+    end
+    
+end %end prep chord matrices
 
 
 %% getAreaInertia
@@ -824,7 +843,7 @@ function I = getAreaInertia( Boundary, verbose )
 % of boundary vertices less than 100, or the figure will take too long.
 
 [Boundary, convex] = checkBound( Boundary );
-cc = prepChordMatrices( Boundary, convex );
+cc = prepChordMatrices( Boundary, convex, verbose );
 
 
 % spacing holds the length of each perimeter segment. This is "ds" in
@@ -841,21 +860,6 @@ integrand = .5*cc.length.^2.*sin(cc.tangent).*cc.dangle.*space.*cc.include;
 % We reject the first two columns of chords, since they are of length zero
 % and on the boundary, respectively.
 I = sum(sum(integrand(:,1:end)));
-
-
-% The following is a slow visual check that the right chords are included.
-if verbose
-    figure;
-    hold on;
-    for i=1:l
-        for j=1:l
-            if chout1(i,j) && chout2(i,j)
-                plot([xrep(i,j) xtri(i,j)],[yrep(i,j) ytri(i,j)])
-                pause(.01)
-            end
-        end
-    end
-end
 
 % This is a slow check to make sure that all chord neighbors are chosen
 % properly. It focuses on chord neighbors more than pi/10 degrees away.
