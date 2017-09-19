@@ -110,7 +110,11 @@
 % EXAMPLE 2
 % ---------
 %   C = pipeConductance(1,'square',1,'ViewImage',true,'Density',60);
-%   % 
+%   
+% EXAMPLE 3
+% ---------
+%   % Compare methods on the circle:
+%   
 function c = pipeConductance(L, pipetype, pipeargs, varargin)
 
 %% Interpret the inputs.
@@ -318,7 +322,6 @@ L = L * mult;
 area = area * mult * mult;
 
 
-
 %% Get Gas and Velocity Info
 if ~isnan(props.Gas)
     if ~isnan(props.Velocity)
@@ -385,7 +388,7 @@ switch(props.Method)
         f = @(r,x) x*sqrt(x^2+4*r^2)-x^2;
         g = @(r,x) (x^2-(2*x-1)*(x^2+4*r^2))/sqrt(x^2+4*r^2);
         aa = @(r,x) (f(r,1-x)-f(r,x))/(g(r,x)-g(r,1-x));
-        r = radius; s7 = sqrt(7);
+        r = radius*mult; s7 = sqrt(7);
         a = aa(r/L,2*r*s7/(3*L+2*r*s7));
         q = sqrt(L^2+4*r^2);
         alpha = (1-2*a)/(3*r^2*L)*(4*r^3+(L^2-2*r^2)*q-L^3)...
