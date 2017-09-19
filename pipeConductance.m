@@ -87,10 +87,15 @@
 %           "Foundations of Vacuum Science and Technology", p 88.
 %
 %           If 'Numeric' is specified, molecules will be randomly
-%           initialzied and propagated ti directly calculate the
-%           transmission probability. This can be a slow process and poorly
-%           converged for long pipes with low probabilities, in which case
-%           'Dushman' is a much better choice.
+%           initialzied and propagated to directly calculate the
+%           transmission probability. This is of great advantage for medium
+%           length pipes of unusual cross section, where no analytic
+%           solutions exist and Dushman could be a rather rough
+%           approximation. In tests comparing Numeric and Clausing, it is
+%           found that the Numeric method performs well at medium lengths
+%           but that for long lengths (L/R = 100) it tends to underestimate
+%           by 5% or so. For long lengths, Dushman is by far the better
+%           choice.
 %
 % 'Number'  The number of molecules to initialize for the 'Numeric' Method,
 %           see above. Default is 10,000.
@@ -114,7 +119,28 @@
 % EXAMPLE 3
 % ---------
 %   % Compare methods on the circle:
-%   
+%   C1 = pipeConductance(10,'circle',1,'Method','Knudsen')
+%   C2 = pipeConductance(10,'circle',1,'Method','Dushman')
+%   C3 = pipeConductance(10,'circle',1,'Method','Clausing')
+%   C4 = pipeConductance(10,'circle',1,'Method','Numeric')
+%
+% EXAMPLE 4
+% ---------
+%   % Conductance of the "Lune" between an inner and outer circle:
+%   angles = 0:pi/25:2*pi;
+%   angles = angles';
+%   c_out = [cos(angles), -sin(angles)];
+%   c_in = [cos(angles)/2, sin(angles)/2]-1/2+1e-6];
+%   pipeConductance(3,'boundary',{c_in,c_out},'Method','Dushman',...
+%        'Units','in','ViewImage',true)
+%
+% EXAMPLE 5
+% ---------
+%   % Using Numeric for a thin slit reveals 30% Dushman over-estimate
+%   pipeConductance(1,'rectangle',[.1 10],'Method','Dushman')
+%   pipeConductance(1,'rectangle',[.1 10],'Method','Numeric')
+%
+%
 function c = pipeConductance(L, pipetype, pipeargs, varargin)
 
 %% Interpret the inputs.
@@ -306,7 +332,7 @@ end
 %% Adjust units
 lengthUnits = struct('m',100,'in',2.54,'ft',30.48,'mm',0.1,'yd',91.44,...
     'km',1e5,'mi',1.609e5,'au',14.96e12,'ltyr',9.461e17,'hb',1.362e28,...
-    'um',1e-4,'nm',1e-7,'cm',1);
+    'um',1e-4,'nm',1e-7,'cm',1,'smoot',170.18);
 
 if isfield(lengthUnits,props.Units)
     mult = lengthUnits.(props.Units);
@@ -361,7 +387,23 @@ end
 % 100 converts to cm/s
 v = 100 * v;
 
-
+%% Clean other inputs:
+pvi = props.ViewImage;
+switch(class(pvi))
+    case 'double'
+        if pvi==1 | pvi==0
+            pvi = logical(pvi);
+        end
+    case 'char'
+        if contains(lower(pvi),'tru')
+            pvi = true;
+        elseif contains(lower(pvi),'fal')
+            pvi = false;
+        end
+end
+props.ViewImage = pvi;
+assert(islogical(props.ViewImage),'pipeCond:modeErr','ViewImage property must be set to a logical')
+    
 
 %% Conductance at last
 
@@ -397,6 +439,9 @@ switch(props.Method)
     case 'Numeric'
         alpha = getTransmissionProb( boundary , L , props.Number);
         c = alpha * v * area / 1000;
+        
+    otherwise
+        error('pipeCond:modeErr','Method ''%s'' not recognized.',props.Method)        
         
 end % end switch(props.Method)        
 
@@ -818,7 +863,7 @@ function chordData = prepChordMatrices( boundary, convex, varargin )
             for j=1:l
                 if (numel(chout1)==1) || (chout1(i,j) && chout2(i,j))
                     plot([xrep(i,j) xtri(i,j)],[yrep(i,j) ytri(i,j)])
-                    pause(.01)
+                    pause(10/l/l)
                 end
             end
         end
@@ -1041,7 +1086,7 @@ function p = getTransmissionProb( Boundary, L, N )
 
     p = throughput / N;
 
-    
+    %spark-notes:
     % loop until enough valid points obtained:
     %  choose initial points somewhere in pipe cross sectional area
     % end loop
