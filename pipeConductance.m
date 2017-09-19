@@ -554,7 +554,7 @@ function chordData = prepChordMatrices( boundary, convex, varargin )
     endps = cumsum(lengths);
 
     % Extra argument interpreted as verbosity flag
-    verbose = ~isempty(varargin) & varargin{1};
+    verbose = ~isempty(varargin) && varargin{1};
     
     % Now I will populate eight matrices. The four matrices without 2 on the
     % end, together will represent all possible chords connecting two points in
@@ -983,7 +983,7 @@ function p = getTransmissionProb( Boundary, L, N )
     distance(~contact) = inf;
     distance(backwards) = inf;
     [distlist, perpos] = min(distance,[],2);
-    pipepos = cos(th).*distlist;
+    pipepos = cot(th).*distlist;
     
 %     % Let's check it in a figure
 %     figure; hold on
