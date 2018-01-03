@@ -1,15 +1,16 @@
-%PIPECONDUCTANCE Find the conductance of a pipe of arbitrary cross section.
+%% PIPECONDUCTANCE Find vacuum conductance of arbitrary cross section pipes
 %
-%c = pipeConductance(L, pipetype, pipeargs) finds the conductance of a pipe
-%   with length L in centimeters, with a cross section of type pipetype, a
-%   string specifying the type of cross section, and with parameters
-%   varying by pipetype but specified in the pipeargs input.
+% c = pipeConductance(L, pipetype, pipeargs)
 %
+%   L is the length of the pipe.
+%
+%   pipetype is a string specifying the type of cross section.
 %   pipetype must be one of: circle, square, rectangle, triangle, polygon,
 %   annulus, wedge, boundary, image
 %
-%   In the following, the pipeargs format corresponding to a given pipetype
-%   is specified:
+%   pipeargs varies according to pipetype, and is specified in the
+%   following table:
+%
 %   pipetype -> pipeargs         further description
 %    circle      radius
 %
@@ -140,7 +141,16 @@
 %   pipeConductance(1,'rectangle',[.1 10],'Method','Dushman')
 %   pipeConductance(1,'rectangle',[.1 10],'Method','Numeric')
 %
-%
+% EXAMPLE 6
+% ---------
+%   % Conductance of an arbitrary profile for use with differential pumping
+%   % around a Stark Decelerator
+%   pipeConductance(7,'image',{imread('decel_conductance.TIF'),.5/656},...
+%       'Units','in','Gas','Ne')
+%   % An appropriate TIFF can be generated from solidworks for example by
+%   % controlling the image quality settings and image export options. The
+%   % size of a pixel can then be determined within matlab using imtool and
+%   % a known size feature of the geometry.
 function c = pipeConductance(L, pipetype, pipeargs, varargin)
 
 %% Interpret the inputs.
