@@ -108,11 +108,11 @@
 % -------------------------------------------------------------------------
 % EXAMPLE 1
 % ---------
-%   C = pipeConductance(1,'circle',1)
+%   C = pipeConductance(1,'circle',0.5,'Method','Knudsen')
 %   % Compare with formula from Pfieffer Vacuum:
 %   % https://www.pfeiffer-vacuum.com/en/know-how/introduction-to-vacuum-technology/fundamentals/conductance/
 %   % d = 1; l = 1; Cp = 12.1 * d^3 / l
-%
+%   
 % EXAMPLE 2
 % ---------
 %   C = pipeConductance(1,'square',1,'ViewImage',true,'Density',60);
